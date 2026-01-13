@@ -1,0 +1,24 @@
+# Secrets
+.env
+*.env
+
+# Logs
+logs/
+*.log
+
+# Runtime
+node_modules/
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads & generated files
+/mnt/
+/public-assets/
+uploads/
+
+# JSON runtime data (will be backed up, not versioned)
+storage-json/*.json
+storage-json/support/*.json
