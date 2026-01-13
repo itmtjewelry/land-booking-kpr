@@ -19,7 +19,7 @@
 - ✅ Implementation Stage 1: Go core skeleton (/api/v1/health) ready
 - ✅ Implementation Stage 2: Backend wired via symlink (/var/api/16000 → /var/www/15000/api/16000)
 - ✅ Go core skeleton committed and live from GitHub
-
+- ✅ Implementation Stage 3: Go core running via systemd (auto-start, restart-on-failure)
 
 ---
 
