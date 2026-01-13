@@ -17,6 +17,9 @@
 - ✅ Server mirror in `/var/www/15000`
 - ✅ Progress tracking workflow established
 - ✅ Implementation Stage 1: Go core skeleton (/api/v1/health) ready
+- ✅ Implementation Stage 2: Backend wired via symlink (/var/api/16000 → /var/www/15000/api/16000)
+- ✅ Go core skeleton committed and live from GitHub
+
 
 ---
 
