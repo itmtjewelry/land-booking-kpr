@@ -1,4 +1,4 @@
-# Project Progress — Land Booking + KPR
+# **SPEC_LOCKED — READY FOR IMPLEMENTATION**Project Progress — Land Booking + KPR
 
 > This file tracks the CURRENT STATE of the project.
 > Always read this file before making changes.
@@ -6,7 +6,7 @@
 ---
 
 ## 🔖 Current State
-**SPEC_LOCKED — READY FOR IMPLEMENTATION**
+Stage 5 — JSON storage initialization (design → skeleton)
 
 ---
 
@@ -20,6 +20,7 @@
 - ✅ Implementation Stage 2: Backend wired via symlink (/var/api/16000 → /var/www/15000/api/16000)
 - ✅ Go core skeleton committed and live from GitHub
 - ✅ Implementation Stage 3: Go core running via systemd (auto-start, restart-on-failure)
+- ✅ Stage 4: Nginx reverse proxy on port 15080 (/ → 15000, /api → 16000)
 
 ---
 
