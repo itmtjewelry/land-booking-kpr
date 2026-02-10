@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/itmtjewelry/land-booking-kpr/internal/app"
 	"github.com/itmtjewelry/land-booking-kpr/internal/httpapi"
 	"github.com/itmtjewelry/land-booking-kpr/internal/logging"
+	"github.com/itmtjewelry/land-booking-kpr/internal/storage"
 )
 
 func main() {
@@ -19,6 +21,21 @@ func main() {
 	service := "go-core"
 
 	logger := logging.NewCSVLogger(logDir, service)
+	storageDir := os.Getenv("STORAGE_DIR")
+	loadRes, err := storage.LoadCore(storageDir)
+	if err != nil {
+		logger.Log("ERROR", "storage_load_failed", "", "storage", storageDir, err.Error())
+		_, _ = fmt.Fprintln(os.Stderr, "storage load failed:", err)
+		os.Exit(1) // STRICT: do not start server
+	}
+
+	state := app.State{
+		StorageReady: true,
+		StorageDir:   loadRes.Dir,
+		LoadedFiles:  loadRes.LoadedList,
+	}
+
+	logger.Log("INFO", "storage_loaded", "", "storage", storageDir, fmt.Sprintf("loaded=%d", len(loadRes.LoadedList)))
 	logger.Log("INFO", "startup", "", "service", service, "starting server")
 
 	mux := http.NewServeMux()
@@ -26,7 +43,7 @@ func main() {
 	// Health endpoint (Stage 1)
 	mux.HandleFunc("/api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		logger.Log("INFO", "health", "", "http", "/api/v1/health", fmt.Sprintf("%s %s", r.Method, r.URL.Path))
-		httpapi.HealthHandler(w, r)
+		httpapi.HealthHandler(w, r, state)
 	})
 
 	// Basic root to avoid confusion

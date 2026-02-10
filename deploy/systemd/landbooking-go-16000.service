@@ -1,0 +1,25 @@
+[Unit]
+Description=LandBooking Go Core API (16000)
+After=network.target
+
+[Service]
+Type=simple
+User=admin_remote
+Group=admin_remote
+WorkingDirectory=/var/api/16000
+ExecStart=/var/api/16000/bin/server
+Restart=on-failure
+RestartSec=2
+
+# Hardening (safe defaults)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/api/16000/logs
+
+# Environment
+Environment=PORT=16000
+
+[Install]
+WantedBy=multi-user.target
