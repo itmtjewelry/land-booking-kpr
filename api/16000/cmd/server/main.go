@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,10 +11,45 @@ import (
 	"time"
 
 	"github.com/itmtjewelry/land-booking-kpr/internal/app"
+	corehttp "github.com/itmtjewelry/land-booking-kpr/internal/http"
 	"github.com/itmtjewelry/land-booking-kpr/internal/httpapi"
 	"github.com/itmtjewelry/land-booking-kpr/internal/logging"
 	"github.com/itmtjewelry/land-booking-kpr/internal/storage"
 )
+
+// Stage 7 deps adapter (must satisfy internal/http/handlers.Stage7Deps)
+type stage7Deps struct {
+	ready  bool
+	loaded map[string]storage.JSONFile // filename -> JSONFile{Meta, Items(raw)}
+}
+
+func (d stage7Deps) StorageReady() bool { return d.ready }
+
+// GetItems returns the "items" object decoded into map[string]any.
+// It is read-only and returns a fresh map (no shared references).
+func (d stage7Deps) GetItems(filename string) map[string]any {
+	if !d.ready || d.loaded == nil {
+		return nil
+	}
+
+	jf, ok := d.loaded[filename]
+	if !ok || jf.Items == nil {
+		return nil
+	}
+
+	out := make(map[string]any, len(jf.Items))
+	for id, raw := range jf.Items {
+		// Each item is an object; decode it into map[string]any.
+		var v any
+		if err := json.Unmarshal(raw, &v); err != nil {
+			// Strict storage validation already happened at startup; if an item fails
+			// to decode here, we just skip it (read APIs should not crash server).
+			continue
+		}
+		out[id] = v
+	}
+	return out
+}
 
 func main() {
 	addr := ":16000"
@@ -35,16 +71,26 @@ func main() {
 		LoadedFiles:  loadRes.LoadedList,
 	}
 
+	// Stage 7 uses the already-loaded in-memory JSON (object-of-objects).
+	deps := stage7Deps{
+		ready:  true,
+		loaded: loadRes.Loaded,
+	}
+
 	logger.Log("INFO", "storage_loaded", "", "storage", storageDir, fmt.Sprintf("loaded=%d", len(loadRes.LoadedList)))
 	logger.Log("INFO", "startup", "", "service", service, "starting server")
 
 	mux := http.NewServeMux()
 
-	// Health endpoint (Stage 1)
+	// Health endpoint (Stage 6)
 	mux.HandleFunc("/api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		logger.Log("INFO", "health", "", "http", "/api/v1/health", fmt.Sprintf("%s %s", r.Method, r.URL.Path))
 		httpapi.HealthHandler(w, r, state)
 	})
+
+	// Stage 7: Read-only GET APIs under /api/v1/
+	// Important: mount BEFORE "/" fallback.
+	mux.Handle("/api/v1/", corehttp.NewStage7Router(deps))
 
 	// Basic root to avoid confusion
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -58,17 +104,14 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Start server in goroutine
 	go func() {
 		logger.Log("INFO", "listen", "", "server", addr, "listening")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Log("ERROR", "listen_error", "", "server", addr, err.Error())
-			// Also print to stderr for visibility
 			_, _ = fmt.Fprintln(os.Stderr, "server error:", err)
 		}
 	}()
 
-	// Graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
