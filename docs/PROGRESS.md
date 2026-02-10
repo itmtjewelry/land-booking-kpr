@@ -6,7 +6,15 @@
 ---
 
 ## 🔖 Current State
-Stage 5 — JSON storage initialization (design → skeleton)
+Stage 8 checklist: APPROVED & LOCKED
+
+Implementation: NOT STARTED
+
+Awaiting: your explicit “Proceed with Stage 8 implementation.”
+
+Implementation: NOT STARTED
+
+Awaiting: YOUR EXPLICIT ACCEPTANCE
 
 ---
 
@@ -21,7 +29,9 @@ Stage 5 — JSON storage initialization (design → skeleton)
 - ✅ Go core skeleton committed and live from GitHub
 - ✅ Implementation Stage 3: Go core running via systemd (auto-start, restart-on-failure)
 - ✅ Stage 4: Nginx reverse proxy on port 15080 (/ → 15000, /api → 16000)
-
+- ✅ Stage 5 — JSON storage initialization (design → skeleton)
+- ✅ Stage 6 — DONE & LOCKED
+- ✅ Stage 7 is now DONE & LOCKED
 ---
 
 ## ⏭️ Next Step
@@ -48,3 +58,17 @@ Stage 5 — JSON storage initialization (design → skeleton)
 ## 🕒 Last Updated
 - Date: 2026-01-13
 - By: admin_remote
+
+## Stage 9 — Bookings + Availability (DONE ✅)
+
+- Added guest-safe bookings read:
+  - GET /api/v1/bookings?zone_id=...
+  - Guest hides customer_phone/customer_email; admin header reveals
+- Added availability endpoint:
+  - GET /api/v1/availability?zone_id=...&from=YYYY-MM-DD&to=YYYY-MM-DD
+- Added admin-only booking writes:
+  - POST /api/v1/bookings
+  - PUT /api/v1/bookings/{id}
+  - POST /api/v1/bookings/{id}/cancel
+- Enforced strict overlap rules for pending/confirmed bookings.
+- Enforced chain validation: site → subsite → zone.
