@@ -72,3 +72,20 @@ Awaiting: YOUR EXPLICIT ACCEPTANCE
   - POST /api/v1/bookings/{id}/cancel
 - Enforced strict overlap rules for pending/confirmed bookings.
 - Enforced chain validation: site → subsite → zone.
+
+## Stage 10.3 — KPR Submit/Approve + Installments (Flat) (DONE ✅)
+
+- Added KPR API:
+  - POST /api/v1/kpr (admin, create draft from confirmed booking, 1 per booking)
+  - GET /api/v1/kpr?booking_id=... (guest-safe; admin reveals full)
+  - PUT /api/v1/kpr/{id} (admin; allowed in draft/submitted)
+  - POST /api/v1/kpr/{id}/submit
+  - POST /api/v1/kpr/{id}/approve (validates required fields)
+  - POST /api/v1/kpr/{id}/reject
+  - POST /api/v1/kpr/{id}/cancel
+- Added Installment Plan API (flat formula):
+  - POST /api/v1/installments/{kpr_id}/generate (admin; only when KPR approved)
+  - GET /api/v1/installments?kpr_id=...
+- Updated strict JSON loader to include:
+  - kpr_applications.json, installment_plans.json, payments.json
+- Added JSON templates for the new core files (no real data in Git).
