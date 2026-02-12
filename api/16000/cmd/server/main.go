@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,38 +18,110 @@ import (
 	"github.com/itmtjewelry/land-booking-kpr/internal/storage"
 )
 
-// Stage 7 deps adapter (must satisfy internal/http/handlers.Stage7Deps)
-type stage7Deps struct {
-	ready  bool
-	loaded map[string]storage.JSONFile // filename -> JSONFile{Meta, Items(raw)}
+type runtimeState struct {
+	mu sync.RWMutex
+
+	storageDir string
+	ready      bool
+	loaded     map[string]storage.JSONFile
+	loadedList []string
+
+	fileMu map[string]*sync.Mutex
 }
 
-func (d stage7Deps) StorageReady() bool { return d.ready }
+func newRuntimeState(storageDir string, lr *storage.LoadResult) *runtimeState {
+	return &runtimeState{
+		storageDir: storageDir,
+		ready:      true,
+		loaded:     lr.Loaded,
+		loadedList: lr.LoadedList,
+		fileMu: map[string]*sync.Mutex{
+			"sites.json":    &sync.Mutex{},
+			"subsites.json": &sync.Mutex{},
+			"zones.json":    &sync.Mutex{},
+			"users.json":    &sync.Mutex{},
+			"bookings.json": &sync.Mutex{},
+			"domains.json":  &sync.Mutex{},
+		},
+	}
+}
 
-// GetItems returns the "items" object decoded into map[string]any.
-// It is read-only and returns a fresh map (no shared references).
-func (d stage7Deps) GetItems(filename string) map[string]any {
-	if !d.ready || d.loaded == nil {
-		return nil
+func (rs *runtimeState) StorageReady() bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return rs.ready
+}
+
+func (rs *runtimeState) StorageDir() string {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return rs.storageDir
+}
+
+func (rs *runtimeState) Loaded() map[string]storage.JSONFile {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	out := make(map[string]storage.JSONFile, len(rs.loaded))
+	for k, v := range rs.loaded {
+		out[k] = v
+	}
+	return out
+}
+
+func (rs *runtimeState) LockForFile(filename string) *sync.Mutex {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	if m, ok := rs.fileMu[filename]; ok {
+		return m
+	}
+	return &sync.Mutex{}
+}
+
+func (rs *runtimeState) ReloadCore() error {
+	rs.mu.RLock()
+	dir := rs.storageDir
+	rs.mu.RUnlock()
+
+	lr, err := storage.LoadCore(dir)
+	if err != nil {
+		return err
 	}
 
-	jf, ok := d.loaded[filename]
+	rs.mu.Lock()
+	rs.ready = true
+	rs.loaded = lr.Loaded
+	rs.loadedList = lr.LoadedList
+	rs.mu.Unlock()
+	return nil
+}
+
+func (rs *runtimeState) GetItems(filename string) map[string]any {
+	rs.mu.RLock()
+	jf, ok := rs.loaded[filename]
+	rs.mu.RUnlock()
 	if !ok || jf.Items == nil {
 		return nil
 	}
 
 	out := make(map[string]any, len(jf.Items))
 	for id, raw := range jf.Items {
-		// Each item is an object; decode it into map[string]any.
 		var v any
 		if err := json.Unmarshal(raw, &v); err != nil {
-			// Strict storage validation already happened at startup; if an item fails
-			// to decode here, we just skip it (read APIs should not crash server).
 			continue
 		}
 		out[id] = v
 	}
 	return out
+}
+
+func (rs *runtimeState) CurrentAppState() app.State {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return app.State{
+		StorageReady: rs.ready,
+		StorageDir:   rs.storageDir,
+		LoadedFiles:  rs.loadedList,
+	}
 }
 
 func main() {
@@ -58,41 +131,28 @@ func main() {
 
 	logger := logging.NewCSVLogger(logDir, service)
 	storageDir := os.Getenv("STORAGE_DIR")
+
 	loadRes, err := storage.LoadCore(storageDir)
 	if err != nil {
 		logger.Log("ERROR", "storage_load_failed", "", "storage", storageDir, err.Error())
 		_, _ = fmt.Fprintln(os.Stderr, "storage load failed:", err)
-		os.Exit(1) // STRICT: do not start server
+		os.Exit(1)
 	}
 
-	state := app.State{
-		StorageReady: true,
-		StorageDir:   loadRes.Dir,
-		LoadedFiles:  loadRes.LoadedList,
-	}
-
-	// Stage 7 uses the already-loaded in-memory JSON (object-of-objects).
-	deps := stage7Deps{
-		ready:  true,
-		loaded: loadRes.Loaded,
-	}
+	rs := newRuntimeState(loadRes.Dir, loadRes)
 
 	logger.Log("INFO", "storage_loaded", "", "storage", storageDir, fmt.Sprintf("loaded=%d", len(loadRes.LoadedList)))
 	logger.Log("INFO", "startup", "", "service", service, "starting server")
 
 	mux := http.NewServeMux()
 
-	// Health endpoint (Stage 6)
 	mux.HandleFunc("/api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		logger.Log("INFO", "health", "", "http", "/api/v1/health", fmt.Sprintf("%s %s", r.Method, r.URL.Path))
-		httpapi.HealthHandler(w, r, state)
+		httpapi.HealthHandler(w, r, rs.CurrentAppState())
 	})
 
-	// Stage 7: Read-only GET APIs under /api/v1/
-	// Important: mount BEFORE "/" fallback.
-	mux.Handle("/api/v1/", corehttp.NewStage7Router(deps))
+	mux.Handle("/api/v1/", corehttp.NewStage8Router(rs))
 
-	// Basic root to avoid confusion
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("not found\n"))

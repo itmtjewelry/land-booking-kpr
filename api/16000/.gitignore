@@ -1,2 +1,5 @@
 storage-json/*.bak.*
 api/16000/bin/
+bin/
+storage-json/*.bak.*
+../storage-json/*.bak.*
