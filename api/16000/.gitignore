@@ -3,3 +3,11 @@ api/16000/bin/
 bin/
 storage-json/*.bak.*
 ../storage-json/*.bak.*
+
+# runtime binaries
+bin/
+
+# local backups
+*.bak.*
+internal/http/router_stage8.go.bak.*
+README_STAGE7.md
