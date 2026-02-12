@@ -107,17 +107,9 @@ func NewStage8Router(deps handlers.Stage8Deps) http.Handler {
 	// STAGE 10.3: KPR + INSTALLMENTS
 	// =========================
 
-	// KPR collection: GET by booking_id, POST create (admin)
 	mux.HandleFunc("/api/v1/kpr", func(w http.ResponseWriter, r *http.Request) {
 		handlers.KPRCollection(deps, w, r)
 	})
-
-	// KPR by id and actions:
-	// - PUT /api/v1/kpr/{id}
-	// - POST /api/v1/kpr/{id}/submit
-	// - POST /api/v1/kpr/{id}/approve
-	// - POST /api/v1/kpr/{id}/reject
-	// - POST /api/v1/kpr/{id}/cancel
 	mux.HandleFunc("/api/v1/kpr/", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/v1/kpr/"))
 		if path == "" {
@@ -127,31 +119,30 @@ func NewStage8Router(deps handlers.Stage8Deps) http.Handler {
 		}
 
 		if strings.HasSuffix(path, "/submit") {
-			id := strings.TrimSpace(strings.TrimSuffix(path, "/submit"))
+			id := strings.TrimSuffix(path, "/submit")
 			id = strings.TrimSuffix(id, "/")
 			handlers.KPRSubmit(deps, id, w, r)
 			return
 		}
 		if strings.HasSuffix(path, "/approve") {
-			id := strings.TrimSpace(strings.TrimSuffix(path, "/approve"))
+			id := strings.TrimSuffix(path, "/approve")
 			id = strings.TrimSuffix(id, "/")
 			handlers.KPRApprove(deps, id, w, r)
 			return
 		}
 		if strings.HasSuffix(path, "/reject") {
-			id := strings.TrimSpace(strings.TrimSuffix(path, "/reject"))
+			id := strings.TrimSuffix(path, "/reject")
 			id = strings.TrimSuffix(id, "/")
 			handlers.KPRReject(deps, id, w, r)
 			return
 		}
 		if strings.HasSuffix(path, "/cancel") {
-			id := strings.TrimSpace(strings.TrimSuffix(path, "/cancel"))
+			id := strings.TrimSuffix(path, "/cancel")
 			id = strings.TrimSuffix(id, "/")
 			handlers.KPRCancel(deps, id, w, r)
 			return
 		}
 
-		// default: /api/v1/kpr/{id}
 		id := strings.TrimSuffix(path, "/")
 		if id == "" || strings.Contains(id, "/") {
 			w.WriteHeader(http.StatusBadRequest)
@@ -161,10 +152,7 @@ func NewStage8Router(deps handlers.Stage8Deps) http.Handler {
 		handlers.KPRByID(deps, id, w, r)
 	})
 
-	// INSTALLMENTS read: GET /api/v1/installments?kpr_id=...
 	mux.HandleFunc("/api/v1/installments", handlers.InstallmentsRead(deps))
-
-	// INSTALLMENTS generate: POST /api/v1/installments/{kpr_id}/generate
 	mux.HandleFunc("/api/v1/installments/", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/v1/installments/"))
 		if path == "" {
@@ -173,13 +161,33 @@ func NewStage8Router(deps handlers.Stage8Deps) http.Handler {
 			return
 		}
 		if strings.HasSuffix(path, "/generate") {
-			id := strings.TrimSpace(strings.TrimSuffix(path, "/generate"))
+			id := strings.TrimSuffix(path, "/generate")
 			id = strings.TrimSuffix(id, "/")
 			handlers.InstallmentsGenerate(deps, id, w, r)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("not found\n"))
+	})
+
+	// =========================
+	// STAGE 10.4: PAYMENTS (ADMIN ONLY)
+	// =========================
+	mux.HandleFunc("/api/v1/payments", func(w http.ResponseWriter, r *http.Request) {
+		handlers.PaymentsCollection(deps, w, r)
+	})
+
+	// =========================
+	// STAGE 10.5: REPORTS (READ ONLY)
+	// =========================
+	mux.HandleFunc("/api/v1/reports/kpr-statement", handlers.ReportKPRStatement(deps))
+	mux.HandleFunc("/api/v1/reports/zone-summary", handlers.ReportZoneSummary(deps))
+	mux.HandleFunc("/api/v1/reports/portfolio", handlers.ReportPortfolio(deps))
+	mux.HandleFunc("/api/v1/reports/penalties/preview", handlers.PenaltiesPreview(deps))
+
+	// STAGE 11: penalties charge (ADMIN)
+	mux.HandleFunc("/api/v1/penalties/charge", func(w http.ResponseWriter, r *http.Request) {
+		handlers.PenaltiesCharge(deps, w, r)
 	})
 
 	return mux
