@@ -11,3 +11,9 @@ bin/
 *.bak.*
 internal/http/router_stage8.go.bak.*
 README_STAGE7.md
+
+# runtime + local backups
+bin/
+*.bak.*
+README_STAGE7.md
+internal/http/router_stage8.go.bak.*
